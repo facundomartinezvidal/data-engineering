@@ -70,3 +70,30 @@ select provincia_cod, count(distinct cliente_num) as clientes from clientes grou
 select sum(precio_unit * cantidad) / count(DISTINCT factura_num) promedio from facturas_det;
 
 --24
+select cliente_num, count(cliente_num)  from facturas  where cliente_num > 108 group by cliente_num;
+
+--25
+select cliente_num, count(cliente_num) as cant_facturas from facturas  where cliente_num > 108 group by cliente_num having count(cliente_num) > 2;
+
+--26
+select  nombre, apellido, coalesce(telefono, 'sin telefono') from clientes;
+
+select  nombre, apellido, case when telefono is not null then telefono else 'sin telefono' end from clientes;
+
+--27
+select nombre, apellido, case when domicilio is not null then domicilio else coalesce(telefono, 'no datos') end from clientes
+
+select nombre, apellido, coalesce(domicilio, telefono, 'no datos') AS domicilio from clientes;
+
+--28
+select fabricante_cod, fabricante_nom,
+       case
+           when tiempo_entrega = 5 then 'normal'
+           when tiempo_entrega is null  then 'desconocido'
+           when tiempo_entrega < 5 then 'rapida'
+           when tiempo_entrega > 5 then 'lenta'
+        end as tiempo_entrega  from fabricantes;
+
+
+--29
+select factura_num, avg(cantidad * precio_unit)  from facturas_det group by factura_num order by avg(cantidad * precio_unit) desc;

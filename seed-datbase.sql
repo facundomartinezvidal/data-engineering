@@ -1,4 +1,4 @@
-USE [uade]
+USE [master]
 GO
 /****** Object:  Table [dbo].[borrar]    Script Date: 1/4/2024 16:18:13 ******/
 SET ANSI_NULLS ON

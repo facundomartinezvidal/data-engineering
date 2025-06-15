@@ -1,4 +1,4 @@
-USE [uade]
+USE [master]
 GO
 INSERT [dbo].[provincias] ([provincia_cod], [provincia_desc]) VALUES (N'BA', N'Buenos Aires')
 INSERT [dbo].[provincias] ([provincia_cod], [provincia_desc]) VALUES (N'CA', N'Catamarca')
