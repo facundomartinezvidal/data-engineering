@@ -1,5 +1,7 @@
 --1 query
-
+-- Seleccionar provincia, nombre del fabricante, monto total vendido del fabricante y promedio del monto vendido de los fabricantes de su provincia
+-- para todos aquellos fabricantes cuyas ventas sean mayores o iguales al promedio de venta de los fabricantes de sus respectivas provincias.
+-- Mostrar la información ordenada por provincia de manera ascendente y monto total en forma descendente.
 select f.provincia_cod, f.fabricante_nom, sum(fd.cantidad * fd.precio_unit) as monto_total,
        (select avg(total_fabricante_prov.monto_total) from (
                         select sum(fd2.cantidad * fd2.precio_unit) as monto_total from fabricantes f2
@@ -133,3 +135,157 @@ BEGIN
         GROUP BY fd.producto_cod
     ) ventas ON p.producto_cod = ventas.producto_cod
 END;
+
+
+
+
+--1 query
+-- Mostrar el código de provincia del cliente, código y descripción del producto y la cantidad de unidades vendidas del producto,
+-- de aquellos productos más vendidos (por cantidad) en cada provincia.
+-- Mostrar el resultado ordenado por código de provincia.
+
+-- Primero creamos una subconsulta para obtener la cantidad total vendida por producto y provincia
+WITH ProductosPorProvincia AS (
+    SELECT
+        c.provincia_cod,
+        fd.producto_cod,
+        p.producto_desc,
+        SUM(fd.cantidad) as total_vendido
+    FROM facturas_det fd
+    INNER JOIN facturas f ON fd.factura_num = f.factura_num
+    INNER JOIN clientes c ON f.cliente_num = c.cliente_num
+    INNER JOIN productos p ON fd.producto_cod = p.producto_cod
+    WHERE c.provincia_cod IS NOT NULL
+    GROUP BY c.provincia_cod, fd.producto_cod, p.producto_desc
+),
+-- Ahora obtenemos el máximo vendido por provincia
+MaxVendidoPorProvincia AS (
+    SELECT
+        provincia_cod,
+        MAX(total_vendido) as max_vendido
+    FROM ProductosPorProvincia
+    GROUP BY provincia_cod
+)
+-- Finalmente combinamos para obtener los productos más vendidos
+SELECT
+    pp.provincia_cod,
+    pp.producto_cod,
+    pp.producto_desc,
+    pp.total_vendido as cantidad_vendida
+FROM ProductosPorProvincia pp
+INNER JOIN MaxVendidoPorProvincia mp ON pp.provincia_cod = mp.provincia_cod
+    AND pp.total_vendido = mp.max_vendido
+ORDER BY pp.provincia_cod;
+
+
+-- 2 trigger
+Create view FabricantesV as (
+    select fabricante_cod, fabricante_nom, tiempo_entrega, p.provincia_cod, p.provincia_desc
+    from fabricantes f join provincias p on f.provincia_cod = p.provincia_cod
+);
+
+--Crear un trigger que permita realizar operaciones de DELETE sobre la vista, de manera tal que:
+--
+-- Si el fabricante tiene un tiempo de entrega menor a 10 días
+-- Informar el error "Error: Cliente eficiente" y no realizar la operación
+-- Sino
+-- Borrar físicamente al fabricante
+
+CREATE TRIGGER DeleteFabricantesTrigger
+ON FabricantesV
+INSTEAD OF DELETE
+AS
+BEGIN
+    DECLARE @fabricante_cod varchar(5), @tiempo_entrega smallint;
+
+    -- Cursor para procesar múltiples eliminaciones
+    DECLARE fabricante_cursor CURSOR FOR
+    SELECT fabricante_cod, tiempo_entrega FROM deleted;
+
+    OPEN fabricante_cursor;
+    FETCH NEXT FROM fabricante_cursor INTO @fabricante_cod, @tiempo_entrega;
+
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        -- Verificar si el tiempo de entrega es menor a 10 días
+        IF @tiempo_entrega < 10
+        BEGIN
+            THROW 50001, 'Error: Cliente eficiente', 1;
+        END
+        ELSE
+        BEGIN
+            -- Borrar físicamente el fabricante
+            DELETE FROM fabricantes
+            WHERE fabricante_cod = @fabricante_cod;
+        END
+
+        FETCH NEXT FROM fabricante_cursor INTO @fabricante_cod, @tiempo_entrega;
+    END
+
+    CLOSE fabricante_cursor;
+    DEALLOCATE fabricante_cursor;
+END;
+
+-- Desarrollar un Procedure que realice la inserción o modificación de un producto determinado.
+-- Parámetros de entrada: producto_cod, producto_desc, fabricante_cod, fabricante_nom, precio_unit
+-- Previamente se realiza alguna operación sobre el fabricante:
+-- Si el fabricante no existe, crearlo.
+-- Hechas las validaciones, si el producto no existe, insertarlo. En caso que el producto ya exista, informarlo. En caso que el producto no exista, actualizarlo sin clave.
+-- En caso de error abortar TODAS las operaciones que se pudieran haber realizado.
+
+
+CREATE PROCEDURE GestionarProducto
+    @producto_cod SMALLINT,
+    @producto_desc VARCHAR(30),
+    @fabricante_cod VARCHAR(5),
+    @fabricante_nom VARCHAR(20),
+    @precio_unit DECIMAL(10,2)
+AS
+BEGIN
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        -- Verificar si el fabricante existe, si no existe, crearlo
+        IF NOT EXISTS (SELECT 1 FROM fabricantes WHERE fabricante_cod = @fabricante_cod)
+        BEGIN
+            INSERT INTO fabricantes (fabricante_cod, fabricante_nom, tiempo_entrega, provincia_cod)
+            VALUES (@fabricante_cod, @fabricante_nom, 1, NULL);
+
+            PRINT 'Fabricante ' + @fabricante_cod + ' creado exitosamente.';
+        END
+
+        -- Verificar si el producto existe
+        IF EXISTS (SELECT 1 FROM productos WHERE producto_cod = @producto_cod)
+        BEGIN
+            -- El producto existe, actualizarlo
+            UPDATE productos
+            SET producto_desc = @producto_desc,
+                fabricante_cod = @fabricante_cod,
+                precio_unit = @precio_unit
+            WHERE producto_cod = @producto_cod;
+
+            PRINT 'Producto ' + CAST(@producto_cod AS VARCHAR) + ' actualizado exitosamente.';
+        END
+        ELSE
+        BEGIN
+            -- El producto no existe, insertarlo
+            INSERT INTO productos (producto_cod, producto_desc, fabricante_cod, precio_unit)
+            VALUES (@producto_cod, @producto_desc, @fabricante_cod, @precio_unit);
+
+            PRINT 'Producto ' + CAST(@producto_cod AS VARCHAR) + ' insertado exitosamente.';
+        END
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRANSACTION;
+
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
+        DECLARE @ErrorState INT = ERROR_STATE();
+
+        RAISERROR(@ErrorMessage, @ErrorSeverity, @ErrorState);
+    END CATCH
+END;
+
+EXEC GestionarProducto 2001, 'Nuevo Producto', 'DOTO', 'DOTO Corporation', 150.00;
