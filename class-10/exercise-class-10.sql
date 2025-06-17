@@ -196,5 +196,6 @@ end
 create procedure borrar_facturas (@factura_num int)
 as
     begin
-        
+
+
     end
