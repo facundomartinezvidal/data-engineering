@@ -8,6 +8,7 @@
     <file url="file://$PROJECT_DIR$/class-8/exercises-class-8.sql" dialect="TSQL" />
     <file url="file://$PROJECT_DIR$/class-9/exercise-class-9.sql" dialect="TSQL" />
     <file url="file://$PROJECT_DIR$/exam/exercise-exam.sql" dialect="TSQL" />
+    <file url="file://$PROJECT_DIR$/real-exam/real-exam.sql" dialect="TSQL" />
     <file url="file://$PROJECT_DIR$/seed-datbase.sql" dialect="TSQL" />
     <file url="file://$PROJECT_DIR$/seed-tables.sql" dialect="TSQL" />
   </component>
